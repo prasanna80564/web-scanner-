@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebSec - Detected Vulnerabilities</title>
+ 
+</head>
+<body>
+  <div class="header">
+    <button class="back-btn" id="backBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+      </svg>
+      Back
+    </button>
+    <div class="logo-container">
+      <img src="/icons/icon48.png" class="logo" alt="WebSec">
+      <h1 class="title">Detected Vulnerabilities</h1>
+    </div>
+    <div class="controls">
+      <button id="clearBtn" class="btn btn-danger">Clear All</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-filter="all">All</div>
+    <div class="tab" data-filter="xss">XSS</div>
+    <div class="tab" data-filter="csrf">CSRF</div>
+  </div>
+
+  <div class="vulnerabilities" id="vulnerabilitiesList">
+    <div class="empty-state">
+      <div class="empty-icon">🛡️</div>
+      <h3>No vulnerabilities detected</h3>
+      <p>Browse the web to detect security issues</p>
+    </div>
+  </div>
+
+  <footer>
+    WebSec v1.0 · Secure Browsing
+  </footer>
+
+  <script src="vulnerabilities.js"></script>
+</body>
+</html>
