@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebSec</title>
+ 
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon48.png" class="logo" alt="WebSec">
+    <span class="title">WebSec</span>
+  </div>
+
+  <div class="status-card">
+    <div>Detected Vulnerabilities</div>
+    <div class="count" id="count">0</div>
+    <div class="status" id="status">Active</div>
+  </div>
+
+  <div class="toggle-container">
+    <span class="toggle-label">Monitoring</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="monitoringToggle" checked>
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="btn-group">
+    <button id="viewAllBtn" class="btn btn-primary">View All Detections</button>
+    <button id="clearBtn" class="btn btn-danger">Clear All Findings</button>
+  </div>
+
+  <div class="footer">
+    WebSec v1.0 · Secure Browsing
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
