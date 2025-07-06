@@ -23,3 +23,20 @@ function shouldIgnorePage() {
   return falsePositiveUrls.some(url => currentUrl.startsWith(url)) || 
          !currentUrl.startsWith('http');
 }
+
+function injectXSSDetector() {
+  if (shouldIgnorePage()) return;
+  
+  try {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('injected.js');
+    script.onload = () => {
+      if (debugMode) console.log('XSS detector loaded');
+      script.remove();
+    };
+    script.onerror = () => console.error('Failed to load XSS detector');
+    (document.head || document.documentElement).appendChild(script);
+  } catch (error) {
+    console.error('Injection failed:', error);
+  }
+}
