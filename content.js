@@ -10,6 +10,7 @@ const falsePositiveUrls = [
   'file://'
 ];
 
+// Initialize monitoring status
 function initializeMonitoring() {
   chrome.runtime.sendMessage({ type: 'get_monitoring_status' }, (response) => {
     if (chrome.runtime.lastError) return;
@@ -18,12 +19,14 @@ function initializeMonitoring() {
   });
 }
 
+// Check if current URL should be ignored
 function shouldIgnorePage() {
   const currentUrl = window.location.href;
   return falsePositiveUrls.some(url => currentUrl.startsWith(url)) || 
          !currentUrl.startsWith('http');
 }
 
+// Inject XSS detector safely
 function injectXSSDetector() {
   if (shouldIgnorePage()) return;
   
@@ -41,7 +44,7 @@ function injectXSSDetector() {
   }
 }
 
- Validate XSS detection patterns
+// Validate XSS detection patterns
 function isValidXSSDetection(xssData) {
   if (!xssData?.details?.matched) return false;
   
@@ -56,6 +59,7 @@ function isValidXSSDetection(xssData) {
   return !ignoredPatterns.some(p => p.test(xssData.details.matched));
 }
 
+// Handle XSS detections
 function handleXSSDetection(event) {
   if (shouldIgnorePage() || !isMonitoring) return;
   if (event.source !== window || event.data?.type !== 'xss_detected') return;
@@ -77,8 +81,9 @@ function handleXSSDetection(event) {
       isConfirmed: false
     }
   });
+}
 
-
+// Check forms for CSRF vulnerabilities
 function checkForms() {
   if (shouldIgnorePage() || !isMonitoring) return;
 
@@ -114,7 +119,7 @@ function checkCSRFToken(form) {
       }
     });
   }
-}}
+}
 
 // Initialize the extension
 function init() {
@@ -128,7 +133,22 @@ function init() {
   window.addEventListener('message', handleXSSDetection);
   checkForms();
 
+  // Watch for dynamically added content
+  new MutationObserver(() => {
+    if (!shouldIgnorePage()) checkForms();
+  }).observe(document, {
+    childList: true,
+    subtree: true
+  });
 
+  // Listen for monitoring changes
+  chrome.runtime.onMessage.addListener((request) => {
+    if (request.type === 'monitoring_updated') {
+      isMonitoring = request.isMonitoring;
+      if (debugMode) console.log('Monitoring updated:', isMonitoring);
+    }
+  });
+}
 
-
+// Start the extension
 init();
