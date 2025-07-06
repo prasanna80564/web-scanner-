@@ -77,4 +77,45 @@ function handleXSSDetection(event) {
       isConfirmed: false
     }
   });
+
+
+function checkForms() {
+  if (shouldIgnorePage() || !isMonitoring) return;
+
+  try {
+    document.querySelectorAll('form').forEach(form => {
+      if (form.method.toUpperCase() === 'POST' && 
+          !shouldSkipForm(form) &&
+          isLikelyCSRFVulnerable(form)) {
+        checkCSRFToken(form);
+      }
+    });
+  } catch (error) {
+    if (debugMode) console.error('Form check error:', error);
+  }
 }
+
+function checkCSRFToken(form) {
+  const tokenData = checkForAntiCSRFTokens(form);
+  if (!tokenData.hasToken) {
+    chrome.runtime.sendMessage({
+      type: 'vulnerability_detected',
+      data: {
+        type: 'Potential CSRF - Missing Token',
+        details: {
+          formAction: form.action,
+          formMethod: form.method,
+          reason: tokenData.reason,
+          pageUrl: window.location.href
+        },
+        url: window.location.href,
+        severity: 'high',
+        isConfirmed: false
+      }
+    });
+  }
+}}
+
+
+
+init();
