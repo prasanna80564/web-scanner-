@@ -55,3 +55,26 @@ function isValidXSSDetection(xssData) {
   
   return !ignoredPatterns.some(p => p.test(xssData.details.matched));
 }
+
+function handleXSSDetection(event) {
+  if (shouldIgnorePage() || !isMonitoring) return;
+  if (event.source !== window || event.data?.type !== 'xss_detected') return;
+  
+  const xssData = event.data.data;
+  if (!isValidXSSDetection(xssData)) return;
+
+  chrome.runtime.sendMessage({
+    type: 'vulnerability_detected',
+    data: {
+      type: xssData.type || 'Unknown XSS',
+      details: {
+        ...xssData.details,
+        pageUrl: window.location.href,
+        element: xssData.element || 'unknown'
+      },
+      url: window.location.href,
+      severity: xssData.severity || 'medium',
+      isConfirmed: false
+    }
+  });
+}
