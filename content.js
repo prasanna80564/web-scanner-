@@ -17,3 +17,9 @@ function initializeMonitoring() {
     if (debugMode) console.log('Monitoring status:', isMonitoring);
   });
 }
+
+function shouldIgnorePage() {
+  const currentUrl = window.location.href;
+  return falsePositiveUrls.some(url => currentUrl.startsWith(url)) || 
+         !currentUrl.startsWith('http');
+}
