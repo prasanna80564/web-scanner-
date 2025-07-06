@@ -25,6 +25,7 @@ const xssPatterns = [
     severity: 'medium'
   }
 ];
+
 function scanNode(node) {
   if (!node.outerHTML) return;
 
@@ -43,7 +44,8 @@ function scanNode(node) {
       });
     }
   });
-    // Check attributes
+
+  // Check attributes
   if (node.attributes) {
     Array.from(node.attributes).forEach(attr => {
       xssPatterns.forEach(({pattern, type, severity}) => {
@@ -63,4 +65,29 @@ function scanNode(node) {
   }
 }
 
+function reportDetection(data) {
+  window.postMessage({
+    type: "xss_detected",
+    data: data
+  }, "*");
+}
+
+const observer = new MutationObserver(mutations => {
+  mutations.forEach(mutation => {
+    mutation.addedNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        scanNode(node);
+      }
+    });
+  });
+});
+
+observer.observe(document, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['onload', 'onerror', 'onclick', 'href', 'src']
+});
+
+// Initial scan
 scanNode(document.documentElement);
