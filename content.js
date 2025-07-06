@@ -116,6 +116,19 @@ function checkCSRFToken(form) {
   }
 }}
 
+// Initialize the extension
+function init() {
+  if (shouldIgnorePage()) {
+    if (debugMode) console.log('Skipping monitoring for internal page');
+    return;
+  }
+
+  initializeMonitoring();
+  injectXSSDetector();
+  window.addEventListener('message', handleXSSDetection);
+  checkForms();
+
+
 
 
 init();
