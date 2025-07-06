@@ -25,3 +25,42 @@ const xssPatterns = [
     severity: 'medium'
   }
 ];
+function scanNode(node) {
+  if (!node.outerHTML) return;
+
+  // Check HTML content
+  xssPatterns.forEach(({pattern, type, severity}) => {
+    const matches = node.outerHTML.match(pattern);
+    if (matches) {
+      reportDetection({
+        type: type,
+        details: {
+          matched: matches[0].slice(0, 200),
+          context: "HTML content",
+          element: node.tagName
+        },
+        severity: severity
+      });
+    }
+  });
+    // Check attributes
+  if (node.attributes) {
+    Array.from(node.attributes).forEach(attr => {
+      xssPatterns.forEach(({pattern, type, severity}) => {
+        if (pattern.test(attr.value)) {
+          reportDetection({
+            type: `${type} in attribute`,
+            details: {
+              attribute: attr.name,
+              value: attr.value.slice(0, 200),
+              element: node.tagName
+            },
+            severity: severity
+          });
+        }
+      });
+    });
+  }
+}
+
+scanNode(document.documentElement);
