@@ -40,3 +40,18 @@ function injectXSSDetector() {
     console.error('Injection failed:', error);
   }
 }
+
+ Validate XSS detection patterns
+function isValidXSSDetection(xssData) {
+  if (!xssData?.details?.matched) return false;
+  
+  const ignoredPatterns = [
+    /^https?:\/\//i,
+    /^data:/i,
+    /^blob:/i,
+    /^chrome-extension:/i,
+    /^moz-extension:/i
+  ];
+  
+  return !ignoredPatterns.some(p => p.test(xssData.details.matched));
+}
