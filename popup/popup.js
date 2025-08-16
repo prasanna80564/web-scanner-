@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewAllBtn = document.getElementById('viewAllBtn');
   const toggle = document.getElementById('monitoringToggle');
 
-  
+  // Load initial state
   chrome.runtime.sendMessage({ type: 'get_vulnerabilities' }, (vulnerabilities) => {
     updateCount(vulnerabilities?.length || 0);
   });
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatus(response?.isMonitoring ?? true);
   });
 
- 
+  // Toggle monitoring
   toggle.addEventListener('change', () => {
     chrome.runtime.sendMessage({ type: 'toggle_monitoring' }, (response) => {
       if (chrome.runtime.lastError) {
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(err => console.error('Error opening tab:', err));
   });
 
-  
+  // Clear button
   clearBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to clear all findings?')) {
       chrome.runtime.sendMessage({ type: 'clear_vulnerabilities' }, () => {
@@ -73,4 +73,4 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   });
-});
+}); 
