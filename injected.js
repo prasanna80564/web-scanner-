@@ -1,93 +1,217 @@
+console.log('XSS detector starting...');
+
+
+const reportedDetections = new Set();
+
+
 const xssPatterns = [
-  { 
-    pattern: /<script\b[^>]*>([\s\S]*?)<\/script>/gi, 
-    type: "XSS: Script Tag Injection",
-    severity: 'high'
+  {
+    name: 'XSS: Script Tag Injection',
+    pattern: /<script[^>]*>.*?<\/script>/gi,
+    validate: (match, context) => {
+      // Only flag if it contains suspicious content, not just legitimate script tags
+      const content = match.replace(/<script[^>]*>/gi, '').replace(/<\/script>/gi, '');
+      return content.includes('alert(') || content.includes('prompt(') || content.includes('confirm(') || 
+             content.includes('eval(') || content.includes('document.cookie') || content.includes('location.href');
+    }
   },
-  { 
-    pattern: /\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^"'\s>]*)/gi, 
-    type: "XSS: Event Handler Injection",
-    severity: 'high'
+  {
+    name: 'XSS: Event Handler Injection',
+    pattern: /on\w+\s*=\s*["'][^"']*["']/gi,
+    validate: (match, context) => {
+      // Only flag if it contains suspicious JavaScript
+      const value = match.match(/on\w+\s*=\s*["']([^"']*)["']/i);
+      if (!value) return false;
+      const jsCode = value[1];
+      return jsCode.includes('alert(') || jsCode.includes('prompt(') || jsCode.includes('confirm(') || 
+             jsCode.includes('eval(') || jsCode.includes('document.cookie') || jsCode.includes('location.href');
+    }
   },
-  { 
-    pattern: /javascript:\s*[^"'\s]+/gi, 
-    type: "XSS: JavaScript URI Injection",
-    severity: 'high'
+  {
+    name: 'XSS: JavaScript URI',
+    pattern: /javascript:/gi,
+    validate: (match, context) => {
+      // Only flag if it's in a dangerous context
+      return context.includes('href') || context.includes('src') || context.includes('action');
+    }
   },
-  { 
-    pattern: /eval\s*\([^)]*\)/gi, 
-    type: "XSS: Eval Function Usage",
-    severity: 'medium'
-  },
-  { 
-    pattern: /<(iframe|embed|object)\b[^>]*>/gi, 
-    type: "XSS: Dangerous HTML Tag",
-    severity: 'medium'
+  {
+    name: 'XSS: Dangerous HTML Tags',
+    pattern: /<(iframe|embed|object)[^>]*>/gi,
+    validate: (match, context) => {
+      // Only flag if it has suspicious attributes
+      return match.includes('src=') && (match.includes('javascript:') || match.includes('data:'));
+    }
   }
 ];
 
-function scanNode(node) {
-  if (!node.outerHTML) return;
 
-  // Check HTML content
-  xssPatterns.forEach(({pattern, type, severity}) => {
-    const matches = node.outerHTML.match(pattern);
+function scanForXSS(html, context = 'HTML content') {
+  const detections = [];
+  
+  xssPatterns.forEach(pattern => {
+    const matches = html.match(pattern.pattern);
     if (matches) {
-      reportDetection({
-        type: type,
-        details: {
-          matched: matches[0].slice(0, 200),
-          context: "HTML content",
-          element: node.tagName
-        },
-        severity: severity
+      matches.forEach(match => {
+        // Only report if validation passes
+        if (pattern.validate(match, context)) {
+          detections.push({
+            type: pattern.name,
+            matched: match.slice(0, 100), // Limit length
+            context: context,
+            element: 'unknown'
+          });
+        }
       });
     }
   });
+  
+  return detections;
+}
 
-  // Check attributes
-  if (node.attributes) {
-    Array.from(node.attributes).forEach(attr => {
-      xssPatterns.forEach(({pattern, type, severity}) => {
-        if (pattern.test(attr.value)) {
-          reportDetection({
-            type: `${type} in attribute`,
-            details: {
-              attribute: attr.name,
-              value: attr.value.slice(0, 200),
-              element: node.tagName
-            },
-            severity: severity
+
+function scanAttributes(element) {
+  const detections = [];
+  const attributes = element.attributes;
+  
+  for (let i = 0; i < attributes.length; i++) {
+    const attr = attributes[i];
+    const value = attr.value;
+    
+    // Check for event handlers
+    if (attr.name.startsWith('on') && attr.name.length > 2) {
+      if (value.includes('alert(') || value.includes('prompt(') || value.includes('confirm(') || 
+          value.includes('eval(') || value.includes('document.cookie') || value.includes('location.href')) {
+        detections.push({
+          type: 'XSS: Event Handler Injection',
+          matched: `${attr.name}="${value}"`,
+          context: `Attribute: ${attr.name}`,
+          element: element.tagName
+        });
+      }
+    }
+    
+   
+    if (value.toLowerCase().startsWith('javascript:')) {
+      detections.push({
+        type: 'XSS: JavaScript URI',
+        matched: `${attr.name}="${value}"`,
+        context: `Attribute: ${attr.name}`,
+        element: element.tagName
+      });
+    }
+  }
+  
+  return detections;
+}
+
+
+function scanElement(element) {
+  let detections = [];
+  
+  // Scan element content
+  if (element.innerHTML) {
+    detections = detections.concat(scanForXSS(element.innerHTML, `Element: ${element.tagName}`));
+  }
+  
+  // Scan attributes
+  detections = detections.concat(scanAttributes(element));
+  
+  return detections;
+}
+
+
+function reportDetection(detection) {
+  // Create a unique key for this detection
+  const detectionKey = `${detection.type}-${detection.matched}-${detection.context}`;
+  
+  // Skip if already reported
+  if (reportedDetections.has(detectionKey)) {
+    console.log('Skipping duplicate detection:', detectionKey);
+    return;
+  }
+  
+
+  reportedDetections.add(detectionKey);
+  
+  console.log('XSS Pattern matched:', detection.type, detection.matched);
+  
+  const message = {
+    type: 'xss_detected',
+    data: {
+      type: detection.type,
+      details: {
+        matched: detection.matched,
+        context: detection.context,
+        element: detection.element,
+        pageUrl: window.location.href
+      },
+      severity: 'high'
+    }
+  };
+  
+  console.log('Reporting XSS detection:', message);
+  window.postMessage(message, '*');
+}
+
+
+function scanDocument() {
+  const allElements = document.querySelectorAll('*');
+  let totalDetections = 0;
+  
+  allElements.forEach(element => {
+    const detections = scanElement(element);
+    detections.forEach(detection => {
+      reportDetection(detection);
+      totalDetections++;
+    });
+  });
+  
+  if (totalDetections > 0) {
+    console.log(`XSS scan complete: Found ${totalDetections} potential vulnerabilities`);
+  } else {
+    console.log('XSS scan complete: No vulnerabilities found');
+  }
+}
+
+
+function watchForChanges() {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const detections = scanElement(node);
+          detections.forEach(detection => {
+            reportDetection(detection);
           });
         }
       });
     });
-  }
-}
-
-function reportDetection(data) {
-  window.postMessage({
-    type: "xss_detected",
-    data: data
-  }, "*");
-}
-
-const observer = new MutationObserver(mutations => {
-  mutations.forEach(mutation => {
-    mutation.addedNodes.forEach(node => {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        scanNode(node);
-      }
-    });
   });
-});
+  
+  observer.observe(document, {
+    childList: true,
+    subtree: true
+  });
+  
+  return observer;
+}
 
-observer.observe(document, {
-  childList: true,
-  subtree: true,
-  attributes: true,
-  attributeFilter: ['onload', 'onerror', 'onclick', 'href', 'src']
-});
-
-// Initial scan
-scanNode(document.documentElement);
+// Initialize
+let observer;
+try {
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      scanDocument();
+      observer = watchForChanges();
+    });
+  } else {
+    scanDocument();
+    observer = watchForChanges();
+  }
+  
+  console.log('XSS detector loaded and running');
+} catch (error) {
+  console.error('XSS detector error:', error);
+}
