@@ -12,7 +12,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   updateBadge();
 });
 
-// Update badge UI
+
 function updateBadge() {
   const count = state.isMonitoring ? state.vulnerabilities.length : 0;
   chrome.action.setBadgeText({
@@ -22,7 +22,164 @@ function updateBadge() {
   chrome.storage.local.set({ 
     vulnerabilities: state.vulnerabilities, 
     isMonitoring: state.isMonitoring 
-  });
+  });// Service worker state
+const state = {
+  vulnerabilities: [],
+  isMonitoring: true
+};
+
+console.log('WebSecGuard background script starting...');
+
+// Initialize extension
+chrome.runtime.onInstalled.addListener(async () => {
+  console.log('WebSecGuard extension installed');
+  try {
+    const data = await chrome.storage.local.get(['vulnerabilities', 'isMonitoring']);
+    state.vulnerabilities = data.vulnerabilities || [];
+    state.isMonitoring = data.isMonitoring !== false;
+    updateBadge();
+    console.log('Initialized with:', state);
+  } catch (error) {
+    console.error('Initialization error:', error);
+  }
+});
+
+
+function updateBadge() {
+  try {
+    const count = state.isMonitoring ? state.vulnerabilities.length : 0;
+    chrome.action.setBadgeText({
+      text: count > 0 ? count.toString() : ""
+    });
+    chrome.action.setBadgeBackgroundColor({ color: '#EA4335' });
+    chrome.storage.local.set({ 
+      vulnerabilities: state.vulnerabilities, 
+      isMonitoring: state.isMonitoring 
+    });
+  } catch (error) {
+    console.error('Badge update error:', error);
+  }
+}
+
+// Message handling
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Background received message:', request.type, 'from:', sender.tab?.url);
+  
+  try {
+    switch (request.type) {
+      case 'vulnerability_detected':
+        handleVulnerabilityDetection(request, sender)
+          .then(() => {
+            console.log('Vulnerability processed successfully');
+            sendResponse({ success: true });
+          })
+          .catch(error => {
+            console.error('Vulnerability processing error:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // Keep message channel open
+
+      case 'get_vulnerabilities':
+        console.log('Sending vulnerabilities:', state.vulnerabilities.length);
+        sendResponse(state.vulnerabilities);
+        break;
+
+      case 'clear_vulnerabilities':
+        state.vulnerabilities = [];
+        updateBadge();
+        console.log('Vulnerabilities cleared');
+        sendResponse({ success: true });
+        break;
+
+      case 'toggle_monitoring':
+        state.isMonitoring = !state.isMonitoring;
+        updateBadge();
+        console.log('Monitoring toggled to:', state.isMonitoring);
+        sendResponse({ success: true, isMonitoring: state.isMonitoring });
+        break;
+
+      case 'get_monitoring_status':
+        console.log('Sending monitoring status:', state.isMonitoring);
+        sendResponse({ isMonitoring: state.isMonitoring });
+        break;
+
+      default:
+        console.log('Unknown message type:', request.type);
+        sendResponse({ success: false, error: 'Unknown message type' });
+    }
+  } catch (error) {
+    console.error('Message handling error:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+});
+
+
+async function handleVulnerabilityDetection(request, sender) {
+  console.log('Processing vulnerability:', request.data);
+  
+  if (!state.isMonitoring) {
+    console.log('Monitoring is disabled');
+    return;
+  }
+
+ 
+  const existing = state.vulnerabilities.find(v => 
+    v.type === request.data.type && 
+    v.url === (sender.tab?.url || 'unknown') &&
+    JSON.stringify(v.details) === JSON.stringify(request.data.details)
+  );
+
+  if (!existing) {
+    const newVuln = {
+      ...request.data,
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      url: sender.tab?.url || 'unknown',
+      status: 'unverified'
+    };
+    
+    state.vulnerabilities.push(newVuln);
+    updateBadge();
+    
+    console.log('New vulnerability added:', newVuln);
+    
+    // Notify user for high severity
+    if (request.data.severity === 'high') {
+      try {
+        await chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: 'Security Alert',
+          message: `${newVuln.type} detected`
+        });
+      } catch (error) {
+        console.error('Notification failed:', error);
+      }
+    }
+  } else {
+    console.log('Duplicate vulnerability ignored');
+  }
+}
+
+// Keep service worker alive
+chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepAlive') {
+    console.log('Service worker kept alive');
+    try {
+      chrome.storage.local.set({ lastAlive: Date.now() });
+    } catch (error) {
+      console.error('Keep alive error:', error);
+    }
+  }
+});
+
+// Handle extension startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('WebSecGuard extension started');
+});
+
+console.log('WebSecGuard background script loaded successfully');
 }
 
 // Message handling
